@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Drone Mission Visualizer</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            height: 100vh;
+            display: flex;
+            overflow: hidden;
+        }
+
+        #sidebar {
+            width: 380px;
+            background: #1e293b;
+            color: white;
+            padding: 20px;
+            overflow-y: auto;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.3);
+        }
+
+        #map {
+            flex: 1;
+            height: 100vh;
+        }
+
+        h2 {
+            color: #3b82f6;
+            margin-bottom: 15px;
+            font-size: 1.4em;
+        }
+
+        h3 {
+            color: #e2e8f0;
+            margin-top: 20px;
+            margin-bottom: 10px;
+            font-size: 1.1em;
+        }
+
+        .control-group {
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #334155;
+            border-radius: 8px;
+        }
+
+        button {
+            width: 100%;
+            padding: 12px;
+            margin: 5px 0;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+        }
+
+        .btn-primary {
+            background: #3b82f6;
+            color: white;
+        }
+
+        .btn-success {
+            background: #10b981;
+            color: white;
+        }
+
+        .btn-danger {
+            background: #ef4444;
+            color: white;
+        }
+
+        .subject-item {
+            background: #1e293b;
+            padding: 12px;
+            margin: 8px 0;
+            border-radius: 6px;
+            cursor: pointer;
+            border: 2px solid transparent;
+            transition: all 0.2s;
+        }
+
+        .subject-item:hover {
+            background: #334155;
+            border-color: #3b82f6;
+        }
+
+        .subject-item.active {
+            background: #3b82f6;
+            border-color: #60a5fa;
+        }
+
+        .flight-toggle {
+            background: #1e293b;
+            padding: 8px 12px;
+            margin: 4px 0;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            font-size: 0.9em;
+        }
+
+        .flight-toggle input[type="checkbox"] {
+            width: auto;
+            margin-right: 10px;
+        }
+
+        .flight-color-indicator {
+            display: inline-block;
+            width: 14px;
+            height: 14px;
+            border-radius: 3px;
+            margin-right: 8px;
+        }
+
+        .stats-box {
+            background: #0f172a;
+            padding: 12px;
+            border-radius: 6px;
+            margin-top: 10px;
+        }
+
+        .stats-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 6px 0;
+            border-bottom: 1px solid #334155;
+            font-size: 0.9em;
+        }
+
+        .stats-item:last-child {
+            border-bottom: none;
+        }
+
+        .legend {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            z-index: 1000;
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin: 5px 0;
+            font-size: 0.85em;
+        }
+
+        .legend-color {
+            width: 20px;
+            height: 3px;
+            margin-right: 8px;
+        }
+
+        .legend-circle {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+
+        #file-input {
+            display: none;
+        }
+
+        .mission-info {
+            background: #0f172a;
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 15px;
+            font-size: 0.9em;
+        }
+
+        .mission-info-item {
+            margin: 4px 0;
+        }
+
+        .map-controls {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 1000;
+            background: white;
+            padding: 10px;
+            border-radius: 6px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+        }
+
+        .map-controls select {
+            padding: 6px;
+            border-radius: 4px;
+            border: 1px solid #cbd5e1;
+        }
+    </style>
+</head>
+<body>
+    <div id="sidebar">
+        <h2>Mission Visualizer</h2>
+
+        <div class="control-group">
+            <h3>Load Mission JSON</h3>
+            <button class="btn-primary" onclick="document.getElementById('file-input').click()">
+                Load Mission File
+            </button>
+            <input type="file" id="file-input" accept=".json" onchange="loadMissionFile(event)">
+
+            <div id="mission-info" class="mission-info" style="display: none;">
+                <div class="mission-info-item"><strong>Type:</strong> <span id="mission-type"></span></div>
+                <div class="mission-info-item"><strong>Shot Type:</strong> <span id="shot-type"></span></div>
+                <div class="mission-info-item"><strong>Subjects:</strong> <span id="subject-count"></span></div>
+                <div class="mission-info-item"><strong>Generated:</strong> <span id="generated-at"></span></div>
+            </div>
+        </div>
+
+        <div class="control-group">
+            <h3>Subjects</h3>
+            <div id="subjects-list">
+                <p style="color: #94a3b8; font-size: 0.9em;">Load a mission file to see subjects</p>
+            </div>
+        </div>
+
+        <div class="control-group">
+            <h3>Flight Paths</h3>
+            <div id="flight-toggles">
+                <p style="color: #94a3b8; font-size: 0.9em;">Select a subject to see flight types</p>
+            </div>
+            <button class="btn-success" onclick="showAllFlights()">Show All</button>
+            <button class="btn-danger" onclick="hideAllFlights()">Hide All</button>
+        </div>
+
+        <div class="control-group">
+            <h3>Statistics</h3>
+            <div id="stats" class="stats-box">
+                <p style="color: #94a3b8; font-size: 0.9em;">No mission loaded</p>
+            </div>
+        </div>
+    </div>
+
+    <div id="map"></div>
+
+    <div class="map-controls">
+        <label>Map Type:</label>
+        <select id="map-type" onchange="changeMapType()">
+            <option value="satellite">Satellite</option>
+            <option value="streets">Streets</option>
+            <option value="terrain">Terrain</option>
+        </select>
+    </div>
+
+    <div class="legend">
+        <div style="font-weight: 600; margin-bottom: 10px;">Legend</div>
+        <div class="legend-item">
+            <div class="legend-circle" style="background: #10b981;"></div>
+            <span>Subject Location</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #3b82f6;"></div>
+            <span>Flight Path</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-circle" style="background: #f59e0b;"></div>
+            <span>Waypoint</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-circle" style="background: #10b981;"></div>
+            <span>Start Point</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-circle" style="background: #ef4444;"></div>
+            <span>End Point</span>
+        </div>
+    </div>
+
+    <script>
+        let map;
+        let currentTileLayer;
+        let missionData = null;
+        let currentSubjectIndex = null;
+        let flightLayers = {};
+        const subjectMarkers = L.layerGroup();
+        const flightPathsGroup = L.layerGroup();
+
+        // Flight type colors
+        const flightColors = {
+            'Tornado': '#ef4444',
+            'Nadir Ortho': '#f59e0b',
+            'Corkscrew': '#10b981',
+            'Undulation': '#06b6d4',
+            'Boomerang': '#8b5cf6',
+            'Rise': '#ec4899',
+            'Fall': '#f97316',
+            'Vortex': '#14b8a6',
+            'Pedestal': '#6366f1',
+            'Strafe Left Low': '#ef4444',
+            'Strafe Left Medium': '#f59e0b',
+            'Strafe Left High': '#84cc16',
+            'Strafe Right Low': '#ef4444',
+            'Strafe Right Medium': '#f59e0b',
+            'Strafe Right High': '#84cc16',
+            'Pan In Low': '#06b6d4',
+            'Pan In Medium': '#0ea5e9',
+            'Pan In High': '#3b82f6',
+            'Pan Out Low': '#8b5cf6',
+            'Pan Out Medium': '#a855f7',
+            'Pan Out High': '#d946ef',
+            'Staircase Curve': '#ec4899',
+            'Orbit': '#10b981',
+            'Overhead': '#f59e0b',
+            'Xls': '#64748b'
+        };
+
+        // Initialize map
+        map = L.map('map').setView([34.6656, -77.0171], 13);
+
+        currentTileLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+            attribution: 'Esri',
+            maxZoom: 20
+        }).addTo(map);
+
+        subjectMarkers.addTo(map);
+        flightPathsGroup.addTo(map);
+
+        function loadMissionFile(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    missionData = JSON.parse(e.target.result);
+                    displayMission(missionData);
+                } catch (error) {
+                    alert('Error parsing JSON file: ' + error.message);
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        function displayMission(data) {
+            // Clear existing data
+            subjectMarkers.clearLayers();
+            flightPathsGroup.clearLayers();
+            flightLayers = {};
+            currentSubjectIndex = null;
+
+            // Display mission info
+            document.getElementById('mission-info').style.display = 'block';
+            document.getElementById('mission-type').textContent = data.mission_info.type.toUpperCase();
+            document.getElementById('shot-type').textContent = data.mission_info.shot_type;
+            document.getElementById('subject-count').textContent = data.subjects.length;
+
+            const date = new Date(data.mission_info.generated_at);
+            document.getElementById('generated-at').textContent = date.toLocaleString();
+
+            // Center map on mission center
+            if (data.mission_info.center_location) {
+                map.setView([
+                    data.mission_info.center_location.latitude,
+                    data.mission_info.center_location.longitude
+                ], 15);
+            }
+
+            // Display subjects
+            displaySubjects(data.subjects);
+
+            // Update stats
+            updateStats();
+        }
+
+        function displaySubjects(subjects) {
+            const subjectsList = document.getElementById('subjects-list');
+            subjectsList.innerHTML = '';
+
+            subjects.forEach((subject, index) => {
+                // Create subject marker
+                const marker = L.circleMarker([subject.latitude, subject.longitude], {
+                    radius: 8,
+                    fillColor: '#10b981',
+                    color: 'white',
+                    weight: 2,
+                    fillOpacity: 1
+                }).addTo(subjectMarkers);
+
+                // Add label
+                L.marker([subject.latitude, subject.longitude], {
+                    icon: L.divIcon({
+                        className: 'subject-label',
+                        html: `<div style="background: white; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; white-space: nowrap;">${subject.name}</div>`,
+                        iconSize: [150, 20]
+                    })
+                }).addTo(subjectMarkers);
+
+                // Create subject list item
+                const div = document.createElement('div');
+                div.className = 'subject-item';
+                div.innerHTML = `
+                    <div><strong>${subject.name}</strong></div>
+                    <div style="font-size: 0.8em; color: #94a3b8; margin-top: 4px;">
+                        ${subject.latitude.toFixed(6)}, ${subject.longitude.toFixed(6)}
+                    </div>
+                `;
+                div.onclick = () => selectSubject(index);
+                subjectsList.appendChild(div);
+
+                // Initialize flight layers for this subject
+                flightLayers[index] = {};
+            });
+        }
+
+        function selectSubject(index) {
+            currentSubjectIndex = index;
+
+            // Update UI
+            document.querySelectorAll('.subject-item').forEach((item, i) => {
+                item.classList.toggle('active', i === index);
+            });
+
+            // Display flight types for this subject
+            displayFlightTypes(index);
+
+            // Focus map on subject
+            const subject = missionData.subjects[index];
+            map.setView([subject.latitude, subject.longitude], 17);
+        }
+
+        function displayFlightTypes(subjectIndex) {
+            const subject = missionData.subjects[subjectIndex];
+            const flightToggles = document.getElementById('flight-toggles');
+            flightToggles.innerHTML = '';
+
+            Object.entries(subject.flight_types).forEach(([flightName, flightData]) => {
+                const color = flightColors[flightName] || '#3b82f6';
+
+                const div = document.createElement('div');
+                div.className = 'flight-toggle';
+                div.innerHTML = `
+                    <input type="checkbox" id="flight-${subjectIndex}-${flightName}"
+                           onchange="toggleFlight(${subjectIndex}, '${flightName}', this.checked)">
+                    <span class="flight-color-indicator" style="background: ${color}"></span>
+                    <label for="flight-${subjectIndex}-${flightName}" style="cursor: pointer; flex: 1;">
+                        ${flightName} (${flightData.specs.num_waypoints} pts)
+                    </label>
+                `;
+                flightToggles.appendChild(div);
+            });
+        }
+
+        function toggleFlight(subjectIndex, flightName, show) {
+            const layerKey = `${subjectIndex}-${flightName}`;
+
+            if (show) {
+                if (!flightLayers[subjectIndex][flightName]) {
+                    // Create flight path
+                    const subject = missionData.subjects[subjectIndex];
+                    const flightData = subject.flight_types[flightName];
+                    const color = flightColors[flightName] || '#3b82f6';
+
+                    const waypoints = flightData.waypoints.map(wp => [wp.latitude, wp.longitude]);
+
+                    const layer = L.layerGroup();
+
+                    // Draw path
+                    L.polyline(waypoints, {
+                        color: color,
+                        weight: 2,
+                        opacity: 0.8
+                    }).addTo(layer);
+
+                    // Draw waypoints
+                    waypoints.forEach((point, idx) => {
+                        let markerColor = '#f59e0b';
+                        if (idx === 0) markerColor = '#10b981';
+                        if (idx === waypoints.length - 1) markerColor = '#ef4444';
+
+                        L.circleMarker(point, {
+                            radius: 3,
+                            fillColor: markerColor,
+                            color: 'white',
+                            weight: 1,
+                            fillOpacity: 1
+                        }).addTo(layer);
+                    });
+
+                    flightLayers[subjectIndex][flightName] = layer;
+                }
+
+                flightLayers[subjectIndex][flightName].addTo(flightPathsGroup);
+            } else {
+                if (flightLayers[subjectIndex][flightName]) {
+                    flightPathsGroup.removeLayer(flightLayers[subjectIndex][flightName]);
+                }
+            }
+
+            updateStats();
+        }
+
+        function showAllFlights() {
+            if (currentSubjectIndex === null) return;
+
+            document.querySelectorAll('#flight-toggles input[type="checkbox"]').forEach(cb => {
+                cb.checked = true;
+                const flightName = cb.id.split('-').slice(2).join('-');
+                toggleFlight(currentSubjectIndex, flightName, true);
+            });
+        }
+
+        function hideAllFlights() {
+            if (currentSubjectIndex === null) return;
+
+            document.querySelectorAll('#flight-toggles input[type="checkbox"]').forEach(cb => {
+                cb.checked = false;
+                const flightName = cb.id.split('-').slice(2).join('-');
+                toggleFlight(currentSubjectIndex, flightName, false);
+            });
+        }
+
+        function updateStats() {
+            const statsDiv = document.getElementById('stats');
+
+            if (!missionData || currentSubjectIndex === null) {
+                statsDiv.innerHTML = '<p style="color: #94a3b8;">Select a subject to see stats</p>';
+                return;
+            }
+
+            const subject = missionData.subjects[currentSubjectIndex];
+            let totalWaypoints = 0;
+            let activeFlights = 0;
+
+            Object.entries(subject.flight_types).forEach(([name, data]) => {
+                const checkbox = document.getElementById(`flight-${currentSubjectIndex}-${name}`);
+                if (checkbox && checkbox.checked) {
+                    totalWaypoints += data.specs.num_waypoints;
+                    activeFlights++;
+                }
+            });
+
+            const estTimeMin = Math.floor(totalWaypoints * 3 / 60);
+            const estTimeSec = (totalWaypoints * 3) % 60;
+
+            statsDiv.innerHTML = `
+                <div class="stats-item">
+                    <span>Subject:</span>
+                    <span>${subject.name.substring(0, 30)}...</span>
+                </div>
+                <div class="stats-item">
+                    <span>Active Flights:</span>
+                    <span>${activeFlights}</span>
+                </div>
+                <div class="stats-item">
+                    <span>Total Waypoints:</span>
+                    <span>${totalWaypoints}</span>
+                </div>
+                <div class="stats-item">
+                    <span>Est. Flight Time:</span>
+                    <span>${estTimeMin}:${estTimeSec.toString().padStart(2, '0')}</span>
+                </div>
+                <div class="stats-item">
+                    <span>Shot Type:</span>
+                    <span>${missionData.mission_info.shot_type}</span>
+                </div>
+            `;
+        }
+
+        function changeMapType() {
+            const type = document.getElementById('map-type').value;
+            map.removeLayer(currentTileLayer);
+
+            if (type === 'satellite') {
+                currentTileLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+                    attribution: 'Esri',
+                    maxZoom: 20
+                });
+            } else if (type === 'streets') {
+                currentTileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '© OpenStreetMap',
+                    maxZoom: 19
+                });
+            } else if (type === 'terrain') {
+                currentTileLayer = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+                    attribution: 'OpenTopoMap',
+                    maxZoom: 17
+                });
+            }
+
+            currentTileLayer.addTo(map);
+        }
+    </script>
+</body>
+</html>

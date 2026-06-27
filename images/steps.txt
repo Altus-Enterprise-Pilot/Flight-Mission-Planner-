@@ -1,0 +1,11 @@
+Steps Taken:
+1. Utilize the Command Line Tool Address_Processor_Routes.py
+*Reference: sc1AddrProc.png
+2. See grouped output
+*Reference: sc2AddrProc.png
+3. Utilize the Command Line Tool drone_flight_generator.py to create Mission Files of Flights
+4. Open Mission_Visualization.html, load JSON Output into Program
+*Reference: sc3Mission1.png
+5. See flights visualized, choose the type on side bar for visualization
+*Reference: sc4Mission2.png
+*Reference: sc5Mission3.png
